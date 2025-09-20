@@ -37,7 +37,6 @@ export function AddProductDialog() {
     if (e.target.files) {
       const files = Array.from(e.target.files);
       setImageFiles(files);
-
       const previews = files.map(file => URL.createObjectURL(file));
       setImagePreviews(previews);
     }
@@ -59,10 +58,8 @@ export function AddProductDialog() {
   };
   
   const uploadFile = async (file: File) => {
-    console.log("Starting upload for:", file.name);
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!;
     const apiKey = process.env.NEXT_PUBLIC_CLOUDINARY_API_KEY!;
-    
     const timestamp = Math.round((new Date).getTime()/1000);
     const signatureResponse = await fetch('/api/sign-image', {
         method: 'POST',
@@ -71,33 +68,18 @@ export function AddProductDialog() {
             paramsToSign: { timestamp, folder: `products/${user?.uid}` },
         }),
     });
-    
-    if (!signatureResponse.ok) {
-        const errorText = await signatureResponse.text();
-        console.error("Signature API Error:", errorText);
-        throw new Error('Failed to get upload signature.');
-    }
-
+    if (!signatureResponse.ok) throw new Error('Failed to get upload signature.');
     const { signature } = await signatureResponse.json();
-
     const formData = new FormData();
     formData.append('file', file);
     formData.append('api_key', apiKey);
     formData.append('timestamp', timestamp.toString());
     formData.append('signature', signature);
     formData.append('folder', `products/${user?.uid}`);
-
     const uploadUrl = `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`;
     const uploadResponse = await fetch(uploadUrl, { method: 'POST', body: formData });
-
-    if (!uploadResponse.ok) {
-        const errorText = await uploadResponse.text();
-        console.error("Cloudinary Upload Error:", errorText);
-        throw new Error('Cloudinary upload failed for ' + file.name);
-    }
-
+    if (!uploadResponse.ok) throw new Error('Cloudinary upload failed for ' + file.name);
     const uploadData = await uploadResponse.json();
-    console.log("Successfully uploaded:", file.name);
     return uploadData.secure_url;
   };
 
@@ -107,13 +89,9 @@ export function AddProductDialog() {
       setError("Please fill out all fields and upload at least one image.");
       return;
     }
-
     setLoading(true);
     try {
-      console.log("Starting product save process...");
       const imageUrls = await Promise.all(imageFiles.map(file => uploadFile(file)));
-      console.log("All images uploaded. URLs:", imageUrls);
-
       await addDoc(collection(db, "products"), {
         artisanId: user.uid,
         artisanName: user.displayName,
@@ -124,18 +102,13 @@ export function AddProductDialog() {
         createdAt: serverTimestamp(),
         isVerified: false,
       });
-      console.log("Product data saved to Firestore.");
-
       setIsOpen(false);
       resetForm();
-
     } catch (e) {
       console.error("Error adding product: ", e);
       setError("Failed to add product. Check the console for details.");
     } finally {
-      // Ensure loading is always set to false, even on error
       setLoading(false);
-      console.log("Product save process finished.");
     }
   };
 
@@ -172,7 +145,8 @@ export function AddProductDialog() {
         <DialogHeader>
           <DialogTitle>Add a New Product</DialogTitle>
           <DialogDescription>
-            Fill in the details for your new item. You can add multiple images.
+            {/* THE FIX: Changed you're to you&apos;re */}
+            Fill in the details for your new item. You can add multiple images. Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">

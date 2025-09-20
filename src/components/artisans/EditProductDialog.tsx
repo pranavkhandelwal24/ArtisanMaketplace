@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react"; // THE FIX: Removed unused 'useEffect'
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,13 +54,13 @@ export function EditProductDialog({ product, onOpenChange }: EditProductDialogPr
   };
 
   return (
-    // The Dialog component controls its own open state through the onOpenChange prop
     <Dialog open={true} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Product</DialogTitle>
           <DialogDescription>
-            Make changes to your product details below. Click save when you're done.
+            {/* THE FIX: Changed you're to you&apos;re */}
+            Make changes to your product details below. Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -94,3 +94,4 @@ export function EditProductDialog({ product, onOpenChange }: EditProductDialogPr
     </Dialog>
   );
 }
+
