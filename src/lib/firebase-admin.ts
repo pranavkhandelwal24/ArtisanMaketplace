@@ -10,7 +10,7 @@ if (!admin.apps.length) {
         privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
       }),
     });
-  } catch (error: unknown) { // THE FIX: Changed 'any' to 'unknown' for type safety
+  } catch (error: unknown) { // THE FIX: Changed 'any' to 'unknown'
     console.error('Firebase admin initialization error');
     // Add a check to safely access the stack property
     if (error instanceof Error) {
