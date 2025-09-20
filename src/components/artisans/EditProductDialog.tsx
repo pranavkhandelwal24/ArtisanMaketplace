@@ -59,7 +59,7 @@ export function EditProductDialog({ product, onOpenChange }: EditProductDialogPr
         <DialogHeader>
           <DialogTitle>Edit Product</DialogTitle>
           <DialogDescription>
-            {/* THE FIX: Changed you're to you&apos;re */}
+            {/* THE FIX: Changed you're to you&apos;re to fix the unescaped entity error */}
             Make changes to your product details below. Click save when you&apos;re done.
           </DialogDescription>
         </DialogHeader>
