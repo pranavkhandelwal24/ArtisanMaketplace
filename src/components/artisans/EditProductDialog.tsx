@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react"; // THE FIX: Removed unused 'useEffect'
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,13 +54,13 @@ export function EditProductDialog({ product, onOpenChange }: EditProductDialogPr
   };
 
   return (
+    // The Dialog component controls its own open state through the onOpenChange prop
     <Dialog open={true} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
           <DialogTitle>Edit Product</DialogTitle>
           <DialogDescription>
-            {/* THE FIX: Changed you're to you&apos;re to fix the unescaped entity error */}
-            Make changes to your product details below. Click save when you&apos;re done.
+            Make changes to your product details below. Click save when you're done.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
@@ -94,4 +94,3 @@ export function EditProductDialog({ product, onOpenChange }: EditProductDialogPr
     </Dialog>
   );
 }
-

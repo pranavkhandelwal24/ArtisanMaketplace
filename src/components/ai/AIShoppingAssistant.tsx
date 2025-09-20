@@ -11,71 +11,50 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
-import { Sparkles, Bot, User, CornerDownLeft, Loader2, Paperclip, X } from "lucide-react";
+import { Sparkles, Bot, User, CornerDownLeft, Loader2 } from "lucide-react";
+import { DocumentData } from "firebase/firestore";
 import Image from "next/image";
+import Link from "next/link";
 
-// Message type is updated to handle optional images
+// Update message type to handle an optional array of products
 type Message = {
   role: 'user' | 'assistant';
   content: string;
-  imageUrl?: string;
+  products?: DocumentData[];
 };
 
 export function AIShoppingAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
-      { role: 'assistant', content: "Hi! I'm your AI assistant. You can ask me to find products or show me an image of something you're looking for." }
+    { role: 'assistant', content: "Welcome to Artisan Haven! Ask me to find products, get gift ideas, or describe what you're looking for." }
   ]);
   const [loading, setLoading] = useState(false);
-  const [image, setImage] = useState<{ preview: string; data: string } | null>(null);
-  
   const chatContainerRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Automatically scroll to the bottom of the chat when new messages are added
+  // Automatically scroll to the bottom when new messages are added
   useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [messages]);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage({
-          preview: URL.createObjectURL(file),
-          data: (reader.result as string).split(',')[1], // Get the base64 part of the data URL
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !image) || loading) return;
+    if (!input.trim() || loading) return;
 
-    const userMessage: Message = { 
-      role: 'user', 
-      content: input,
-      imageUrl: image?.preview,
-    };
+    const userMessage: Message = { role: 'user', content: input };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
-
+    setInput('');
     setLoading(true);
+
     try {
-      // THE FIX: Call the backend API with the chat history and image data
-      const response = await fetch('/api/ai/chat', {
+      // THE FIX: Call the new, smarter backend API
+      const response = await fetch('/api/ai/assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            messages: newMessages, 
-            imageData: image?.data 
-        }),
+        body: JSON.stringify({ messages: newMessages }),
       });
 
       if (!response.ok) {
@@ -83,16 +62,20 @@ export function AIShoppingAssistant() {
       }
 
       const data = await response.json();
-      const assistantMessage: Message = { role: 'assistant', content: data.reply };
+      
+      // THE FIX: Create an assistant message that includes both the text reply and any products found
+      const assistantMessage: Message = { 
+        role: 'assistant', 
+        content: data.reply,
+        products: data.products || [] // Attach the products array if it exists
+      };
       setMessages(prev => [...prev, assistantMessage]);
 
     } catch (error) {
       console.error(error);
-      const errorMessage: Message = { role: 'assistant', content: "I'm sorry, I'm having trouble connecting right now. Please try again later." };
+      const errorMessage: Message = { role: 'assistant', content: "I'm sorry, I'm having trouble connecting right now." };
       setMessages(prev => [...prev, errorMessage]);
     } finally {
-      setInput('');
-      setImage(null);
       setLoading(false);
     }
   };
@@ -109,20 +92,44 @@ export function AIShoppingAssistant() {
           <SheetHeader>
             <SheetTitle>AI Shopping Assistant</SheetTitle>
             <SheetDescription>
-              Ask me anything or show me a picture of what you're looking for.
+              Your personal guide to handcrafted treasures.
             </SheetDescription>
           </SheetHeader>
           
           <div ref={chatContainerRef} className="flex-1 overflow-y-auto pr-4">
             <div className="flex flex-col gap-4 py-4">
               {messages.map((msg, index) => (
-                <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                  {msg.role === 'assistant' && (<div className="bg-muted p-2 rounded-full"><Bot className="h-5 w-5" /></div>)}
-                  <div className={`rounded-lg p-3 text-sm max-w-[80%] break-words ${ msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted' }`}>
-                    {msg.imageUrl && <Image src={msg.imageUrl} alt="User upload" width={150} height={150} className="rounded-md mb-2" />}
-                    {msg.content}
+                <div key={index} className="flex flex-col gap-2">
+                  <div className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                    {msg.role === 'assistant' && (<div className="bg-muted p-2 rounded-full mt-1"><Bot className="h-5 w-5" /></div>)}
+                    <div className={`rounded-lg p-3 text-sm max-w-[80%] break-words ${ msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted' }`}>
+                      {msg.content}
+                    </div>
+                    {msg.role === 'user' && (<div className="bg-blue-100 p-2 rounded-full mt-1"><User className="h-5 w-5 text-blue-600" /></div>)}
                   </div>
-                  {msg.role === 'user' && (<div className="bg-blue-100 p-2 rounded-full"><User className="h-5 w-5 text-blue-600" /></div>)}
+                  
+                  {/* THE FIX: Render product cards if they exist on an assistant message */}
+                  {msg.role === 'assistant' && msg.products && msg.products.length > 0 && (
+                    <div className="ml-12 grid grid-cols-1 gap-2">
+                      {msg.products.map(product => (
+                        <Link href={`/product/${product.id}`} key={product.id} className="block group">
+                          <div className="flex items-center gap-3 rounded-lg border p-2 hover:bg-muted/50 transition-colors">
+                            <Image 
+                              src={product.imageUrls[0] || "https://placehold.co/64x64"} 
+                              alt={product.name}
+                              width={64}
+                              height={64}
+                              className="rounded-md object-cover"
+                            />
+                            <div>
+                              <p className="font-semibold text-sm group-hover:underline">{product.name}</p>
+                              <p className="text-sm font-bold">₹{product.price.toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               {loading && (
@@ -132,23 +139,13 @@ export function AIShoppingAssistant() {
           </div>
           
           <form onSubmit={handleSubmit} className="relative mt-auto border-t pt-4">
-            {image && (
-              <div className="relative w-20 h-20 mb-2">
-                <Image src={image.preview} alt="Image preview" layout="fill" className="rounded-md object-cover" />
-                <Button size="icon" variant="destructive" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={() => setImage(null)}><X className="h-4 w-4" /></Button>
-              </div>
-            )}
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Describe the image or ask a question..."
-              className="pr-20"
+              placeholder="e.g., Show me a blue silk scarf..."
+              className="pr-12"
               disabled={loading}
             />
-            <input type="file" ref={fileInputRef} onChange={handleImageSelect} className="hidden" accept="image/*" />
-            <Button type="button" size="icon" variant="ghost" className="absolute right-10 top-5 h-8 w-8" onClick={() => fileInputRef.current?.click()} disabled={loading}>
-                <Paperclip className="h-4 w-4" />
-            </Button>
             <Button type="submit" size="icon" className="absolute right-1 top-5 h-8 w-8" disabled={loading}>
               <CornerDownLeft className="h-4 w-4" />
             </Button>

@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, getDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, serverTimestamp, runTransaction, increment } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,8 +12,12 @@ import { Loader2 } from "lucide-react";
 import Image from "next/image";
 
 type ShippingAddress = {
-    line1: string; line2: string; city: string;
-    state: string; pincode: string; phone: string;
+    line1: string;
+    line2: string;
+    city: string;
+    state: string;
+    pincode: string;
+    phone: string;
 };
 
 export default function CheckoutPage() {
@@ -25,7 +29,7 @@ export default function CheckoutPage() {
     const [loading, setLoading] = useState(true);
     const [placingOrder, setPlacingOrder] = useState(false);
 
-    const deliveryCharge = 50.00; // Example flat delivery charge
+    const deliveryCharge = 50.00;
     const finalTotal = totalPrice + deliveryCharge;
 
     useEffect(() => {
@@ -54,7 +58,6 @@ export default function CheckoutPage() {
         setPlacingOrder(true);
         try {
             const artisanIds = [...new Set(cartItems.map(item => item.artisanId))];
-
             const orderData = {
                 buyerId: user.uid,
                 artisanIds: artisanIds,
@@ -71,15 +74,28 @@ export default function CheckoutPage() {
                 deliveryCharge: deliveryCharge,
                 totalAmount: finalTotal,
                 status: 'Packaging',
-                paymentMethod: 'Manual Checkout', // New field
-                paymentStatus: 'Paid',           // New field
+                paymentMethod: "Manual", // Placeholder for payment status
+                paymentStatus: "Paid",   // Placeholder for payment status
                 createdAt: serverTimestamp(),
             };
             
-            const orderDocRef = await addDoc(collection(db, "orders"), orderData);
+            // Use a transaction to create the order and update sales counts atomically
+            await runTransaction(db, async (transaction) => {
+                const ordersCollectionRef = collection(db, "orders");
+                const newOrderRef = doc(ordersCollectionRef); // Create a reference for the new order
+                transaction.set(newOrderRef, orderData); // Set the new order data
+
+                // For each item in the cart, update the sales count on its product document
+                for (const item of cartItems) {
+                    const productRef = doc(db, "products", item.id);
+                    transaction.update(productRef, {
+                        sales: increment(item.quantity)
+                    });
+                }
+            });
             
             clearCart();
-            router.push(`/order-success?orderId=${orderDocRef.id}`);
+            router.push(`/order-success?orderId=new`); // Simplified redirect for now
 
         } catch (error) {
             console.error("Error placing order:", error);
