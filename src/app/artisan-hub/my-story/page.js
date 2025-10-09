@@ -12,7 +12,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function MyStoryPage() {
-    const { user, loading: authLoading } from useAuth();
+    // THE FIX: Simplified the destructuring to avoid parsing errors.
+    const { user, loading } = useAuth();
     const router = useRouter();
     const [story, setStory] = useState('');
     const [initialStory, setInitialStory] = useState('');
@@ -21,10 +22,9 @@ export default function MyStoryPage() {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
-    // THE FIX: Added a robust security check to this specific page.
-    // This ensures the page only loads for the correct user type and prevents incorrect redirects.
+    // Security check for the page
     useEffect(() => {
-        if (!authLoading) {
+        if (!loading) {
             if (!user) {
                 router.push('/login');
             } else if (user.role !== 'artisan') {
@@ -33,9 +33,9 @@ export default function MyStoryPage() {
                 router.push('/verification');
             }
         }
-    }, [user, authLoading, router]);
+    }, [user, loading, router]);
 
-    // Fetch the user's existing story when the component mounts
+    // Fetch the user's existing story
     useEffect(() => {
         if (user && user.role === 'artisan') {
             const fetchStory = async () => {
@@ -107,8 +107,8 @@ export default function MyStoryPage() {
         }
     };
 
-    // THE FIX: A comprehensive loading state that waits for auth checks to complete.
-    if (authLoading || !user || user.role !== 'artisan' || !user.isVerifiedArtisan) {
+    // A comprehensive loading state
+    if (loading || !user || user.role !== 'artisan' || !user.isVerifiedArtisan) {
         return (
             <div className="flex h-full w-full items-center justify-center">
                 <Loader2 className="h-8 w-8 animate-spin" />
