@@ -20,6 +20,7 @@ async function getProductDetails(productId) {
       return null;
     }
     
+    // THE FIX: Changed doc.data() to docSnap.data() to correctly get the product's data.
     const productData = { id: docSnap.id, ...docSnap.data() };
     
     if (productData?.artisanId) {
@@ -50,7 +51,7 @@ export default async function ProductPage({ params }) {
         <div className="mx-auto max-w-2xl px-4 pb-16 sm:px-6 lg:max-w-7xl lg:px-8 lg:pb-24">
           <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8">
             
-            {/* 2. Replace the single image with the new carousel component */}
+            {/* The carousel component now receives the correct media data */}
             <ProductImageCarousel media={product.media || []} />
 
             {/* Product info */}
