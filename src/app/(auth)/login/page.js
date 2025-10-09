@@ -14,18 +14,17 @@ import {
     GoogleAuthProvider, 
     signInWithPopup, 
     RecaptchaVerifier,
-    signInWithPhoneNumber
+    signInWithPhoneNumber,
+    updateProfile
 } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 
 // Helper to set up the reCAPTCHA verifier
-const setupRecaptcha = (phoneNumber) => {
-    // It's important that this is only called once
+const setupRecaptcha = () => {
     if (!window.recaptchaVerifier) {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
             'size': 'invisible',
             'callback': (response) => {
-                // reCAPTCHA solved, allow signInWithPhoneNumber.
                 console.log("reCAPTCHA solved");
             }
         });
@@ -34,9 +33,8 @@ const setupRecaptcha = (phoneNumber) => {
 
 export default function LoginPage() {
   const [isSignUpMode, setIsSignUpMode] = useState(false);
-  const [loginMethod, setLoginMethod] = useState('email'); // 'email' or 'phone'
+  const [loginMethod, setLoginMethod] = useState('email');
   
-  // State for forms
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -51,36 +49,101 @@ export default function LoginPage() {
   const router = useRouter();
 
   const handleRedirect = async (user) => {
-    // ... (This function remains the same)
+    if (!user) return router.push('/');
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+
+    if (userDoc.exists()) {
+      const userData = userDoc.data();
+      if (userData.role === 'artisan' && !userData.isVerifiedArtisan) {
+        router.push('/verification');
+      } else if (userData.role === 'artisan') {
+        router.push('/artisan-hub');
+      } else {
+        router.push('/');
+      }
+    } else {
+       router.push('/');
+    }
   };
 
   const handleEmailSubmit = async () => {
-    // ... (This function remains the same)
+    setError('');
+    setLoading(true);
+    if (isSignUpMode) {
+      if (!displayName) {
+        setLoading(false);
+        return setError('Please enter your full name.');
+      }
+      try {
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        await updateProfile(user, { displayName });
+        await setDoc(doc(db, "users", user.uid), {
+          uid: user.uid,
+          displayName,
+          email,
+          role,
+          isVerifiedArtisan: false,
+        });
+        await handleRedirect(user);
+      } catch (e) {
+        setError('Failed to create account. Email might be in use.');
+      }
+    } else {
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        await handleRedirect(userCredential.user);
+      } catch (e) {
+        setError('Failed to log in. Check credentials.');
+      }
+    }
+    setLoading(false);
   };
   
   const handleGoogleSignIn = async () => {
-    // ... (This function remains the same)
+    setError('');
+    setLoading(true);
+    const provider = new GoogleAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const user = result.user;
+      const userDocRef = doc(db, "users", user.uid);
+      const userDoc = await getDoc(userDocRef);
+      
+      if (!userDoc.exists()) {
+        await setDoc(userDocRef, {
+          uid: user.uid,
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL,
+          role: 'buyer',
+          isVerifiedArtisan: false
+        });
+      }
+      await handleRedirect(user);
+    } catch (e) {
+      console.error("Google Sign-In Error:", e);
+      setError('Failed to sign in with Google. Please try again.');
+    }
+    setLoading(false);
   };
 
-  // --- NEW PHONE AUTH FUNCTIONS ---
   const handlePhoneSubmit = async () => {
       setError('');
       setLoading(true);
       try {
-          // Add country code if not present
           const formattedPhone = phone.startsWith('+') ? phone : `+91${phone}`;
-          setupRecaptcha(formattedPhone);
+          setupRecaptcha();
           const appVerifier = window.recaptchaVerifier;
-
           const confirmation = await signInWithPhoneNumber(auth, formattedPhone, appVerifier);
           setConfirmationResult(confirmation);
           setOtpSent(true);
-          setLoading(false);
       } catch (e) {
           console.error("Phone Sign-In Error:", e);
           setError("Failed to send OTP. Please check the phone number or try again.");
-          setLoading(false);
       }
+      setLoading(false);
   };
 
   const handleOtpVerify = async () => {
@@ -94,13 +157,10 @@ export default function LoginPage() {
       try {
           const result = await confirmationResult.confirm(otp);
           const user = result.user;
-          
-          // Check if this is a new user
           const userDocRef = doc(db, "users", user.uid);
           const userDoc = await getDoc(userDocRef);
           
           if (!userDoc.exists()) {
-              // Create a profile for the new user, prompt for name later
               await setDoc(userDocRef, {
                   uid: user.uid,
                   phoneNumber: user.phoneNumber,
@@ -109,14 +169,12 @@ export default function LoginPage() {
               });
           }
           await handleRedirect(user);
-
       } catch (e) {
           console.error("OTP Verification Error:", e);
           setError("Invalid OTP. Please try again.");
-          setLoading(false);
       }
+      setLoading(false);
   };
-
 
   const toggleMode = () => {
     setIsSignUpMode(!isSignUpMode);
@@ -125,9 +183,7 @@ export default function LoginPage() {
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-stone-50">
-      {/* This div is for the invisible reCAPTCHA */}
       <div id="recaptcha-container"></div>
-
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle className="text-2xl">{isSignUpMode ? 'Create an Account' : 'Login'}</CardTitle>
@@ -136,20 +192,18 @@ export default function LoginPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4">
-          <Button onClick={handleGoogleSignIn} variant="outline" className="w-full">
+          <Button onClick={handleGoogleSignIn} variant="outline" className="w-full" disabled={loading}>
             Sign in with Google
           </Button>
 
           <div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">Or continue with</span></div></div>
 
-          {/* Login Method Toggle */}
            <div className="grid grid-cols-2 gap-2">
                 <Button variant={loginMethod === 'email' ? 'default' : 'outline'} onClick={() => { setLoginMethod('email'); setOtpSent(false); }}>Email</Button>
                 <Button variant={loginMethod === 'phone' ? 'default' : 'outline'} onClick={() => { setLoginMethod('phone'); setOtpSent(false); }}>Phone</Button>
            </div>
           
-           {/* EMAIL FORM */}
-           {loginMethod === 'email' && !otpSent && (
+           {loginMethod === 'email' && (
               <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
                   <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -158,7 +212,6 @@ export default function LoginPage() {
               </div>
            )}
 
-           {/* PHONE FORM */}
            {loginMethod === 'phone' && !otpSent && (
               <div className="grid gap-2">
                   <Label htmlFor="phone">Phone Number</Label>
@@ -166,15 +219,13 @@ export default function LoginPage() {
               </div>
            )}
            
-           {/* OTP FORM */}
            {loginMethod === 'phone' && otpSent && (
                 <div className="grid gap-2">
                     <Label htmlFor="otp">Enter OTP</Label>
                     <Input id="otp" type="text" placeholder="6-digit code" value={otp} onChange={(e) => setOtp(e.target.value)} />
-                    <Button variant="link" size="sm" className="p-0 h-auto" onClick={() => setOtpSent(false)}>Change phone number</Button>
+                    <Button variant="link" size="sm" className="p-0 h-auto justify-start" onClick={() => setOtpSent(false)}>Change phone number</Button>
                 </div>
            )}
-
 
           {isSignUpMode && loginMethod === 'email' && (
             <>
@@ -192,7 +243,7 @@ export default function LoginPage() {
           {error && <p className="text-red-500 text-sm">{error}</p>}
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-           {loginMethod === 'email' && <Button onClick={handleEmailSubmit} className="w-full" disabled={loading}>{isSignUpMode ? 'Create Account' : 'Sign in'}</Button>}
+           {loginMethod === 'email' && <Button onClick={handleEmailSubmit} className="w-full" disabled={loading}>{loading ? 'Processing...' : (isSignUpMode ? 'Create Account' : 'Sign in')}</Button>}
            {loginMethod === 'phone' && !otpSent && <Button onClick={handlePhoneSubmit} className="w-full" disabled={loading}>{loading ? 'Sending...' : 'Send OTP'}</Button>}
            {loginMethod === 'phone' && otpSent && <Button onClick={handleOtpVerify} className="w-full" disabled={loading}>{loading ? 'Verifying...' : 'Verify OTP & Login'}</Button>}
           
