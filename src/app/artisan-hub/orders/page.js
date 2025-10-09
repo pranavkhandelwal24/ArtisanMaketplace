@@ -1,132 +1,150 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { collection, query, where, getDocs, doc, updateDoc, orderBy } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, MoreHorizontal } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import { collection, query, where, getDocs, orderBy, doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
-export default function AdminDeliveriesPage() {
+// This function securely and efficiently fetches only the orders relevant to the logged-in artisan
+async function fetchArtisanOrders(artisanId) {
+    const ordersRef = collection(db, "orders");
+    const q = query(
+        ordersRef, 
+        where("artisanIds", "array-contains", artisanId),
+        orderBy("createdAt", "desc")
+    );
+    
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+}
+
+
+export default function ArtisanOrdersPage() {
     const { user, loading: authLoading } = useAuth();
     const router = useRouter();
     
-    const [activeOrders, setActiveOrders] = useState([]);
+    const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    // THE FIX: A more robust security check that waits for authentication to finish
     useEffect(() => {
+        // Only run checks after the initial auth state has been determined
         if (!authLoading) {
-            if (!user || !user.isAdmin) {
-                router.push('/'); // Security: redirect non-admins
+            if (!user) {
+                // If user is not logged in at all, redirect to login
+                router.push('/login');
+                return; // Stop further execution
+            }
+            if (user.role !== 'artisan') {
+                // If the user is logged in but is a buyer or admin, redirect to homepage
+                router.push('/');
             } else {
-                fetchActiveOrders();
+                // If we've passed all checks and the user IS an artisan, fetch their orders
+                fetchOrders(user.uid);
             }
         }
     }, [user, authLoading, router]);
 
-    const fetchActiveOrders = async () => {
+    const fetchOrders = async (uid) => {
         setLoading(true);
         try {
-            const ordersRef = collection(db, "orders");
-            const q = query(
-                ordersRef, 
-                where("status", "in", ["Ready for Pickup", "Shipped", "Out for Delivery"]),
-                orderBy("createdAt", "asc")
-            );
-            const querySnapshot = await getDocs(q);
-            const orders = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-            setActiveOrders(orders);
+            const userOrders = await fetchArtisanOrders(uid);
+            setOrders(userOrders);
         } catch (error) {
-            console.error("Error fetching active orders:", error);
+            console.error("Error fetching artisan orders:", error);
         } finally {
             setLoading(false);
         }
     }
 
-    const handleStatusChange = async (orderId, newStatus) => {
+    const handleReadyForPickup = async (orderId) => {
         const orderDocRef = doc(db, "orders", orderId);
-        await updateDoc(orderDocRef, { status: newStatus });
-        fetchActiveOrders(); // Refresh the list
+        await updateDoc(orderDocRef, { status: 'Ready for Pickup' });
+        if(user) fetchOrders(user.uid);
     };
 
+    const isNewOrder = (orderDate) => {
+        const twentyFourHoursAgo = new Date();
+        twentyFourHoursAgo.setDate(twentyFourHoursAgo.getDate() - 1);
+        return orderDate > twentyFourHoursAgo;
+    };
+
+    // This loading state now correctly waits for both auth and data fetching
     if (authLoading || loading) {
-        return <div className="flex h-screen items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
+        return <div className="flex h-full items-center justify-center"><Loader2 className="animate-spin h-8 w-8" /></div>;
     }
 
     return (
-        <main className="container mx-auto p-4 md:p-8">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Delivery Management</CardTitle>
-                    <CardDescription>
-                        Manage orders that are ready for pickup or are currently in transit.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    {activeOrders.length > 0 ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Order ID</TableHead>
-                                    <TableHead>Buyer</TableHead>
-                                    <TableHead>Shipping City</TableHead>
-                                    <TableHead>Current Status</TableHead>
-                                    <TableHead className="text-right">Actions</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {activeOrders.map(order => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="font-medium">#{order.id.substring(0, 8)}</TableCell>
-                                        <TableCell>{order.shippingAddress.name}</TableCell>
-                                        <TableCell>{order.shippingAddress.city}</TableCell>
-                                        <TableCell>
-                                            <span className="font-semibold">{order.status}</span>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <DropdownMenu>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button variant="ghost" size="icon">
-                                                        <MoreHorizontal className="h-4 w-4" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                <DropdownMenuContent align="end">
-                                                    <DropdownMenuLabel>Update Status</DropdownMenuLabel>
-                                                    <DropdownMenuItem onSelect={() => handleStatusChange(order.id, 'Shipped')}>
-                                                        Mark as Shipped
-                                                    </DropdownMenuItem>
-                                                    <DropdownMenuItem onSelect={() => handleStatusChange(order.id, 'Out for Delivery')}>
-                                                        Mark as Out for Delivery
-                                                    </DropdownMenuItem>
-                                                     <DropdownMenuItem onSelect={() => handleStatusChange(order.id, 'Delivered')}>
-                                                        Mark as Delivered
-                                                    </DropdownMenuItem>
-                                                </DropdownMenuContent>
-                                            </DropdownMenu>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    ) : (
-                        <div className="text-center py-16">
-                            <h2 className="text-2xl font-semibold">All Clear!</h2>
-                            <p className="text-muted-foreground mt-2">There are no orders currently awaiting pickup or in transit.</p>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-        </main>
+        <div className="flex flex-1 flex-col gap-4">
+            <div className="flex items-center">
+                <h1 className="text-lg font-semibold md:text-2xl">Received Orders</h1>
+            </div>
+            {orders.length > 0 ? (
+                <div className="space-y-6">
+                    {orders.map(order => (
+                        <Card key={order.id}>
+                            <CardHeader className="flex flex-col md:flex-row md:items-start md:justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2">
+                                        Order #{order.id.substring(0, 8)}
+                                        {isNewOrder(new Date(order.createdAt.seconds * 1000)) && order.status === 'Packaging' && (
+                                            <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-1 rounded-full">New</span>
+                                        )}
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Date: {new Date(order.createdAt.seconds * 1000).toLocaleDateString()}
+                                    </CardDescription>
+                                </div>
+                                <div className="mt-2 text-sm md:mt-0 md:text-right">
+                                    <p>Buyer: {order.shippingAddress.name || 'N/A'}</p>
+                                    <p>Payment: <span className="font-semibold">{order.paymentStatus || 'Paid'}</span></p>
+                                </div>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="mb-4">
+                                    <h4 className="font-semibold">Your Items in this Order:</h4>
+                                    {order.items
+                                        .filter((item) => item.artisanId === user?.uid)
+                                        .map((item) => (
+                                        <div key={item.id} className="ml-4 py-2 border-b last:border-b-0">
+                                            <p>{item.name} (Qty: {item.quantity})</p>
+                                        </div>
+                                    ))}
+                                </div>
+                                <details className="mb-4">
+                                    <summary className="cursor-pointer font-semibold">View Shipping Address</summary>
+                                    <div className="mt-2 p-3 bg-muted rounded-md text-sm">
+                                        <p>{order.shippingAddress.line1}</p>
+                                        {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
+                                        <p>{order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}</p>
+                                        <p>Phone: {order.shippingAddress.phone}</p>
+                                    </div>
+                                </details>
+                                <div className="flex items-center justify-between rounded-lg bg-muted p-3">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-semibold">Order Status:</span>
+                                        <span className="font-medium text-primary">{order.status}</span>
+                                    </div>
+                                    {order.status === 'Packaging' && (
+                                        <Button onClick={() => handleReadyForPickup(order.id)}>
+                                            Mark as Ready for Pickup
+                                        </Button>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-16 rounded-lg border-2 border-dashed">
+                    <h2 className="text-2xl font-semibold">No Orders Yet</h2>
+                    <p className="text-muted-foreground mt-2">When a buyer purchases one of your products, the order will appear here.</p>
+                </div>
+            )}
+        </div>
     );
 }
-
