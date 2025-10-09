@@ -1,5 +1,6 @@
 import { db } from "@/lib/firebase-admin";
-import { increment } from "firebase-admin/firestore";
+// THE FIX: Import 'FieldValue' instead of 'increment'
+import { FieldValue } from "firebase-admin/firestore";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -11,9 +12,9 @@ export async function POST(request: Request) {
 
         const productRef = db.collection('products').doc(productId);
         
-        // Use the admin SDK to increment the view count atomically
+        // THE FIX: Use FieldValue.increment() to update the count
         await productRef.update({
-            views: increment(1)
+            views: FieldValue.increment(1)
         });
 
         return NextResponse.json({ success: true });
@@ -23,3 +24,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
     }
 }
+
