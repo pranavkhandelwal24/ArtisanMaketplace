@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname } from 'next/navigation';
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
 import {
   Package2,
   Home,
@@ -12,10 +11,30 @@ import {
   Sparkles,
   PenSquare,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 // This layout wraps all pages inside the /artisan-hub directory
 export default function DashboardLayout({ children }) {
   const pathname = usePathname();
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  // THE FIX: This is the main security guard for the entire dashboard.
+  // It runs once and protects all child pages.
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        router.push('/login');
+      } else if (user.role !== 'artisan') {
+        router.push('/');
+      } else if (!user.isVerifiedArtisan) {
+        router.push('/verification');
+      }
+    }
+  }, [user, loading, router]);
 
   const navItems = [
     { href: "/artisan-hub", icon: Home, label: "Dashboard" },
@@ -25,6 +44,15 @@ export default function DashboardLayout({ children }) {
     { href: "/artisan-hub/my-story", icon: PenSquare, label: "My Story" },
   ];
 
+  // While checking authentication, show a full-page loader
+  if (loading || !user || user.role !== 'artisan' || !user.isVerifiedArtisan) {
+      return (
+          <div className="flex h-screen w-full items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      );
+  }
+
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
       <div className="hidden border-r bg-muted/40 md:block">
@@ -32,7 +60,7 @@ export default function DashboardLayout({ children }) {
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Package2 className="h-6 w-6" />
-              <span className="">Artisan Haven</span>
+              <span>Artisan Haven</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -62,3 +90,4 @@ export default function DashboardLayout({ children }) {
     </div>
   );
 }
+
