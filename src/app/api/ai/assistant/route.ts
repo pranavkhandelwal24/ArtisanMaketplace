@@ -29,19 +29,32 @@ async function searchProducts(query: string) {
     const productsRef = db.collection('products');
     const snapshot = await productsRef.where('isVerified', '==', true).get();
     
-    const allProducts = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // THE FIX: Explicitly type the data coming from Firestore.
+    const allProducts = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.name || '',
+            description: data.description || '',
+            category: data.category || '',
+            // Add other product properties here if needed for the search
+        };
+    });
 
     const lowerCaseQuery = query.toLowerCase();
     
-    // THE FIX: Safely check for the existence of each property before calling toLowerCase()
+    // Now TypeScript knows that 'name', 'description', and 'category' exist.
     const results = allProducts.filter(product => 
-        (product.name || '').toLowerCase().includes(lowerCaseQuery) ||
-        (product.description || '').toLowerCase().includes(lowerCaseQuery) ||
-        (product.category || '').toLowerCase().includes(lowerCaseQuery)
+        product.name.toLowerCase().includes(lowerCaseQuery) ||
+        product.description.toLowerCase().includes(lowerCaseQuery) ||
+        product.category.toLowerCase().includes(lowerCaseQuery)
     );
     
     console.log(`Found ${results.length} products.`);
-    return { products: results.slice(0, 3) };
+    // We need to fetch the full product data again for the ones that matched
+    const fullResults = results.map(p => snapshot.docs.find(doc => doc.id === p.id)?.data());
+
+    return { products: fullResults.slice(0, 3) };
 }
 
 
@@ -103,7 +116,14 @@ export async function POST(request: Request) {
         ]);
         const responseText = result2.response.text();
         const responseJson = parseAIResponse(responseText);
-        return NextResponse.json({ ...responseJson, products });
+        
+        // We need to re-fetch the full data to pass to the client
+        const productIds = products.map((p: any) => p.id);
+        const fullProductsData = snapshot.docs
+            .filter(doc => productIds.includes(doc.id))
+            .map(doc => ({ id: doc.id, ...doc.data() }));
+
+        return NextResponse.json({ ...responseJson, products: fullProductsData });
     }
 
     const responseText = result.response.text();
