@@ -20,8 +20,8 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    // THE FIX: Use the stable 'gemini-pro' model name
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    // THE FIX: Use the latest and most powerful model available.
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro-latest" });
 
     const prompt = `
       You are an expert e-commerce and brand strategist for 'Artisan Haven', a marketplace for unique, handcrafted goods.
@@ -65,9 +65,10 @@ export async function POST(request: Request) {
     return NextResponse.json(analysis);
     
   } catch (error) {
-    console.error("Error calling Gemini API for product analysis:", error);
+    // THE FIX: Add more detailed error logging.
+    console.error("Full error object from Google AI:", JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: "Failed to generate AI analysis." },
+      { error: "Failed to generate AI analysis. Please check server logs for details." },
       { status: 500 }
     );
   }
