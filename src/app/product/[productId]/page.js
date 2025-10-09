@@ -20,7 +20,6 @@ async function getProductDetails(productId) {
       return null;
     }
     
-    // THE FIX: Changed doc.data() to docSnap.data() to correctly get the product's data.
     const productData = { id: docSnap.id, ...docSnap.data() };
     
     if (productData?.artisanId) {
@@ -44,6 +43,13 @@ export default async function ProductPage({ params }) {
     notFound();
   }
 
+  // THE FIX: For backward compatibility, if the new 'media' field doesn't exist,
+  // create it from the old 'imageUrls' field so the carousel can display the images.
+  const mediaToDisplay = product.media || (product.imageUrls || []).map(url => ({
+    type: 'image',
+    url: url,
+  }));
+
   return (
     <div className="bg-white">
       <ProductViewTracker productId={product.id} />
@@ -51,8 +57,8 @@ export default async function ProductPage({ params }) {
         <div className="mx-auto max-w-2xl px-4 pb-16 sm:px-6 lg:max-w-7xl lg:px-8 lg:pb-24">
           <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8">
             
-            {/* The carousel component now receives the correct media data */}
-            <ProductImageCarousel media={product.media || []} />
+            {/* The carousel component now receives a compatible media array for all products */}
+            <ProductImageCarousel media={mediaToDisplay} />
 
             {/* Product info */}
             <div className="mt-10 px-4 sm:mt-16 sm:px-0 lg:mt-0">
