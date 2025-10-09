@@ -20,7 +20,8 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    // THE FIX: Use the stable 'gemini-pro' model name
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
     const prompt = `
       You are an expert e-commerce and brand strategist for 'Artisan Haven', a marketplace for unique, handcrafted goods.
@@ -53,11 +54,9 @@ export async function POST(request: Request) {
     const result = await model.generateContent(prompt);
     const responseText = result.response.text();
     
-    // A more robust way to extract the JSON from the AI's response.
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
-      console.error("Could not find a valid JSON object in the AI response:", responseText);
-      throw new Error("AI returned an invalid format. Please try again.");
+      throw new Error("AI returned an invalid format.");
     }
 
     const jsonString = jsonMatch[0];
