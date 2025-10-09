@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
     // Use a multimodal model that can understand text and images
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
 
     // The system instruction defines the AI's personality
     const systemInstruction = "You are a friendly and helpful shopping assistant for 'Artisan Haven', an e-commerce marketplace for unique handcrafted goods. Your knowledge is limited to the products and artisans on this platform. Be polite, enthusiastic, and help users find products, get gift ideas, and learn about the artisans. If a user provides an image, analyze it and try to find similar products. Do not answer questions unrelated to the marketplace.";

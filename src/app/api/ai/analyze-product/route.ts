@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
                                                     try {
                                                         const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-                                                            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+                                                            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
                                                                 const prompt = `
                                                                       You are an expert e-commerce and brand strategist for 'Artisan Haven', a marketplace for unique, handcrafted goods.
                                                                             An artisan needs a comprehensive analysis of their product listing.
