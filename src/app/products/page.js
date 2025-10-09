@@ -6,9 +6,11 @@ import { db } from "@/lib/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 import Image from "next/image";
 import Link from "next/link";
-import { Input } from "@/components/ui/input";
 import { Loader2 } from "lucide-react";
 import { FilterSidebar } from "@/components/products/FilterSidebar";
+import { PaginationControls } from "@/components/products/PaginationControls";
+
+const PRODUCTS_PER_PAGE = 12;
 
 function ProductsContent() {
   const searchParams = useSearchParams();
@@ -17,13 +19,18 @@ function ProductsContent() {
   const [allProducts, setAllProducts] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // State for all filters, managed by this parent component
+  // State for all filters
   const [searchTerm, setSearchTerm] = useState(initialSearch);
   const [sortOption, setSortOption] = useState('newest');
   const [priceRange, setPriceRange] = useState([10000]);
   const [category, setCategory] = useState('all');
+  const [currentPage, setCurrentPage] = useState(1);
 
-  // Fetch all products once when the component mounts
+  // THE FIX: When the search query in the URL changes, update our search term
+  useEffect(() => {
+    setSearchTerm(initialSearch);
+  }, [initialSearch]);
+
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
@@ -36,19 +43,14 @@ function ProductsContent() {
     fetchProducts();
   }, []);
 
-  // This powerful hook re-calculates the product list only when a filter changes
   const processedProducts = useMemo(() => {
     let products = [...allProducts];
-
     if (searchTerm) {
       products = products.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
     }
-    
-    if (category !== 'all') {
-      products = products.filter(p => p.category?.toLowerCase() === category);
-    }
+    // We will activate this in the next step
+    // if (category !== 'all') { ... } 
     products = products.filter(p => p.price <= priceRange[0]);
-
     switch (sortOption) {
       case 'price-asc': products.sort((a, b) => a.price - b.price); break;
       case 'price-desc': products.sort((a, b) => b.price - a.price); break;
@@ -56,6 +58,12 @@ function ProductsContent() {
     }
     return products;
   }, [searchTerm, sortOption, priceRange, category, allProducts]);
+  
+  const totalPages = Math.ceil(processedProducts.length / PRODUCTS_PER_PAGE);
+  const paginatedProducts = processedProducts.slice(
+      (currentPage - 1) * PRODUCTS_PER_PAGE,
+      currentPage * PRODUCTS_PER_PAGE
+  );
 
   if (loading) {
       return <div className="flex h-[70vh] items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
@@ -79,14 +87,10 @@ function ProductsContent() {
             }}
         />
         <div className="flex-1">
-            <Input 
-                type="text" placeholder="Search for products by name..."
-                value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-                className="mb-6"
-            />
-            {processedProducts.length > 0 ? (
+            {/* THE FIX: The redundant search bar has been removed from this page. */}
+            {paginatedProducts.length > 0 ? (
                 <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3">
-                {processedProducts.map((product) => (
+                {paginatedProducts.map((product) => (
                     <Link key={product.id} href={`/product/${product.id}`} className="group">
                     <div className="aspect-h-1 aspect-w-1 w-full overflow-hidden rounded-lg bg-gray-200">
                         <Image
@@ -102,13 +106,19 @@ function ProductsContent() {
             ) : (
                 <div className="mt-16 text-center"><h2 className="text-2xl font-semibold">No Products Found</h2><p className="text-muted-foreground mt-2">Try adjusting your search or filters.</p></div>
             )}
+            {totalPages > 1 && (
+                <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                />
+            )}
         </div>
       </div>
     </main>
   );
 }
 
-// Wrap with Suspense to allow useSearchParams (for the navbar search) to work correctly
 export default function AllProductsPage() {
     return (
         <Suspense fallback={<div className="flex h-screen items-center justify-center"><Loader2 className="h-10 w-10 animate-spin" /></div>}>
@@ -116,3 +126,4 @@ export default function AllProductsPage() {
         </Suspense>
     );
 }
+
