@@ -16,7 +16,7 @@ export async function POST(request: Request) {
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
     // THE FIX: Use the Gemini model which works with our API key
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `Generate a single, professional, high-quality lifestyle photograph for an e-commerce marketplace. The product is a handcrafted item. Do not include any text or logos in the image.
     Product Name: "${productName}"

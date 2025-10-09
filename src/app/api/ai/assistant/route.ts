@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001", tools });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash", tools });
     
     const systemInstruction = `You are a friendly, expert shopping assistant for 'Artisan Haven', an e-commerce marketplace for unique handcrafted goods. Your primary goal is to help users discover products they will love.
 

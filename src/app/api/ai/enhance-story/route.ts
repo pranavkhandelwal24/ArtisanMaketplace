@@ -20,7 +20,7 @@ export async function POST(request: Request) {
 
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       You are an expert storyteller and copywriter for an e-commerce marketplace that sells unique, handcrafted goods.

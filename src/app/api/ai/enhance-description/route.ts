@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
     // Use the latest recommended model name to fix the "Not Found" error
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-001" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `You are an expert e-commerce copywriter for a marketplace selling handcrafted goods.
     Rewrite the following product description to be more warm, evocative, and appealing to customers.
