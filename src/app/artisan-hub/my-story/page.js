@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,8 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function MyStoryPage() {
-    const { user } = useAuth();
+    const { user, loading: authLoading } = useAuth();
+    const router = useRouter();
     const [story, setStory] = useState('');
     const [initialStory, setInitialStory] = useState('');
     const [aiLoading, setAiLoading] = useState(false);
@@ -19,9 +21,23 @@ export default function MyStoryPage() {
     const [error, setError] = useState('');
     const [successMessage, setSuccessMessage] = useState('');
 
+    // THE FIX: Added a robust security check to this specific page.
+    // This ensures the page only loads for the correct user type and prevents incorrect redirects.
+    useEffect(() => {
+        if (!authLoading) {
+            if (!user) {
+                router.push('/login');
+            } else if (user.role !== 'artisan') {
+                router.push('/');
+            } else if (!user.isVerifiedArtisan) {
+                router.push('/verification');
+            }
+        }
+    }, [user, authLoading, router]);
+
     // Fetch the user's existing story when the component mounts
     useEffect(() => {
-        if (user) {
+        if (user && user.role === 'artisan') {
             const fetchStory = async () => {
                 const userDocRef = doc(db, 'users', user.uid);
                 const docSnap = await getDoc(userDocRef);
@@ -90,6 +106,15 @@ export default function MyStoryPage() {
             setSaveLoading(false);
         }
     };
+
+    // THE FIX: A comprehensive loading state that waits for auth checks to complete.
+    if (authLoading || !user || user.role !== 'artisan' || !user.isVerifiedArtisan) {
+        return (
+            <div className="flex h-full w-full items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-1 flex-col gap-4">
