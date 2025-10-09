@@ -12,7 +12,7 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 export default function MyStoryPage() {
-    const { user, loading: authLoading } = useAuth();
+    const { user, loading: authLoading } from useAuth();
     const router = useRouter();
     const [story, setStory] = useState('');
     const [initialStory, setInitialStory] = useState('');
