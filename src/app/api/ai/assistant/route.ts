@@ -1,18 +1,19 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, Tool, SchemaType } from "@google/generative-ai";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/firebase-admin";
 
-const tools = [
+// --- Define the "Tool" the AI can use (with corrected typing) ---
+const tools: Tool[] = [
   {
     functionDeclarations: [
       {
         name: "searchProducts",
         description: "Searches the marketplace's product database based on a user's query about what they are looking for.",
         parameters: {
-          type: "OBJECT",
+          type: SchemaType.OBJECT,
           properties: {
             query: {
-              type: "STRING",
+              type: SchemaType.STRING,
               description: "A detailed search query describing the product. e.g., 'handcrafted ceramic mug', 'blue silk scarf', 'wooden gift'."
             },
           },
@@ -23,27 +24,26 @@ const tools = [
   },
 ];
 
-// This function now safely searches the database
+// This function now safely searches and returns full product data
 async function searchProducts(query: string) {
     console.log(`AI is searching for products with query: "${query}"`);
     const productsRef = db.collection('products');
     const snapshot = await productsRef.where('isVerified', '==', true).get();
     
-    // THE FIX: Explicitly type the data coming from Firestore.
+    // Explicitly type the product data coming from Firestore
     const allProducts = snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-            id: doc.id,
-            name: data.name || '',
-            description: data.description || '',
-            category: data.category || '',
-            // Add other product properties here if needed for the search
-        };
+      const data = doc.data();
+      return {
+        id: doc.id,
+        name: data.name as string || '',
+        description: data.description as string || '',
+        category: data.category as string || '',
+        ...data
+      };
     });
 
     const lowerCaseQuery = query.toLowerCase();
     
-    // Now TypeScript knows that 'name', 'description', and 'category' exist.
     const results = allProducts.filter(product => 
         product.name.toLowerCase().includes(lowerCaseQuery) ||
         product.description.toLowerCase().includes(lowerCaseQuery) ||
@@ -51,10 +51,7 @@ async function searchProducts(query: string) {
     );
     
     console.log(`Found ${results.length} products.`);
-    // We need to fetch the full product data again for the ones that matched
-    const fullResults = results.map(p => snapshot.docs.find(doc => doc.id === p.id)?.data());
-
-    return { products: fullResults.slice(0, 3) };
+    return { products: results.slice(0, 3) };
 }
 
 
@@ -109,7 +106,8 @@ export async function POST(request: Request) {
     };
 
     if (call?.name === 'searchProducts') {
-        const { products } = await searchProducts(call.args.query);
+        // Explicitly cast the type of call.args to an object with a query property
+        const { products } = await searchProducts((call.args as { query: string }).query);
 
         const result2 = await chat.sendMessage([
             { functionResponse: { name: 'searchProducts', response: { products } } },
@@ -117,13 +115,7 @@ export async function POST(request: Request) {
         const responseText = result2.response.text();
         const responseJson = parseAIResponse(responseText);
         
-        // We need to re-fetch the full data to pass to the client
-        const productIds = products.map((p: any) => p.id);
-        const fullProductsData = snapshot.docs
-            .filter(doc => productIds.includes(doc.id))
-            .map(doc => ({ id: doc.id, ...doc.data() }));
-
-        return NextResponse.json({ ...responseJson, products: fullProductsData });
+        return NextResponse.json({ ...responseJson, products: products });
     }
 
     const responseText = result.response.text();
