@@ -21,7 +21,7 @@ export async function POST(request) {
   try {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY);
     // THE FIX: Switched to the 'gemini-1.0-pro' model, which has wider availability.
-    const model = genAI.getGenerativeModel({ model: "gemini-1.0-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
     const prompt = `
       You are an expert e-commerce and brand strategist for 'Artisan Haven', a marketplace for unique, handcrafted goods.
