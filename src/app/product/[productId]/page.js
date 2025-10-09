@@ -1,36 +1,42 @@
 import { db } from "@/lib/firebase-admin";
 import { notFound } from "next/navigation";
-import Image from "next/image";
+import Link from "next/link";
 import { ProductActions } from "@/components/products/ProductActions";
+import { ProductViewTracker } from "@/components/products/ProductViewTracker";
+import { ProductImageCarousel } from "@/components/products/ProductImageCarousel"; // 1. Import the new carousel component
 
-// This function serializes data to prevent Server/Client component errors
 function serializeObject(obj) {
+  // This function is crucial for passing complex data like Timestamps
+  // from a Server Component to a Client Component.
   return JSON.parse(JSON.stringify(obj));
 }
 
 async function getProductDetails(productId) {
-  const productDocRef = db.collection('products').doc(productId);
-  const docSnap = await productDocRef.get();
+  try {
+    const productDocRef = db.collection('products').doc(productId);
+    const docSnap = await productDocRef.get();
+    
+    if (!docSnap.exists) {
+      return null;
+    }
+    
+    const productData = { id: docSnap.id, ...docSnap.data() };
+    
+    if (productData?.artisanId) {
+        const artisanSnap = await db.collection('users').doc(productData.artisanId).get();
+        if(artisanSnap.exists) {
+            productData.artisan = artisanSnap.data();
+        }
+    }
   
-  if (!docSnap.exists) {
+    return serializeObject(productData);
+  } catch (error) {
+    console.error("Failed to get product details:", error);
     return null;
   }
-  
-  const productData = { id: docSnap.id, ...docSnap.data() };
-  
-  if (productData?.artisanId) {
-      const artisanSnap = await db.collection('users').doc(productData.artisanId).get();
-      if(artisanSnap.exists) {
-          productData.artisan = artisanSnap.data();
-      }
-  }
-
-  // Convert the complex Firestore object into a plain object before returning
-  return serializeObject(productData);
 }
 
 export default async function ProductPage({ params }) {
-  // Use params.productId directly to fix the Next.js error
   const product = await getProductDetails(params.productId);
 
   if (!product || !product.isVerified) {
@@ -39,21 +45,13 @@ export default async function ProductPage({ params }) {
 
   return (
     <div className="bg-white">
+      <ProductViewTracker productId={product.id} />
       <div className="pt-6">
         <div className="mx-auto max-w-2xl px-4 pb-16 sm:px-6 lg:max-w-7xl lg:px-8 lg:pb-24">
           <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-8">
-            {/* Image gallery */}
-            <div className="flex flex-col-reverse">
-              <div className="aspect-h-1 aspect-w-1 w-full">
-                <Image
-                  src={product.imageUrls[0] || "https://placehold.co/600x600"}
-                  alt={product.name}
-                  width={600}
-                  height={600}
-                  className="h-full w-full rounded-lg border object-cover object-center shadow-sm sm:rounded-lg"
-                />
-              </div>
-            </div>
+            
+            {/* 2. Replace the single image with the new carousel component */}
+            <ProductImageCarousel media={product.media || []} />
 
             {/* Product info */}
             <div className="mt-10 px-4 sm:mt-16 sm:px-0 lg:mt-0">
@@ -68,14 +66,14 @@ export default async function ProductPage({ params }) {
               </div>
               {product.artisan && (
                  <div className="mt-6">
-                   <a href={`/artisans/${product.artisanId}`} className="group">
-                      <div className="mt-1 text-sm text-gray-500">
-                         <span className="font-medium text-gray-900 group-hover:underline">
-                             Sold by {product.artisan.displayName}
-                         </span>
-                      </div>
-                   </a>
-                 </div>
+                    <Link href={`/artisans/${product.artisanId}`} className="group">
+                       <div className="mt-1 text-sm text-gray-500">
+                          <span className="font-medium text-gray-900 group-hover:underline">
+                              Sold by {product.artisan.displayName}
+                          </span>
+                       </div>
+                    </Link>
+                  </div>
               )}
               <div className="mt-10 flex">
                 <ProductActions product={product} />
@@ -87,3 +85,4 @@ export default async function ProductPage({ params }) {
     </div>
   );
 }
+
