@@ -17,33 +17,30 @@ export default function ArtisanHubDashboardPage() {
   const [loadingStats, setLoadingStats] = useState(true);
 
   useEffect(() => {
-    // Fetch dashboard data only when the user object is available
     if (user) {
         setLoadingStats(true);
         try {
-          // 1. Set up a listener for products
-          // This query finds all products created by the logged-in artisan
           const productsQuery = query(collection(db, "products"), where("artisanId", "==", user.uid));
           const productsUnsubscribe = onSnapshot(productsQuery, (productsSnapshot) => {
-            // We count only the products that have been approved by an admin
             const activeProductsCount = productsSnapshot.docs.filter(doc => doc.data().isVerified).length;
             setStats(prevStats => ({
               ...prevStats,
               activeProducts: activeProductsCount,
             }));
+          }, 
+          // THE FIX: Added an error handler for the products query
+          (error) => {
+            console.error("Error fetching products:", error);
+            setLoadingStats(false); // Stop loading even if there's an error
           });
 
-          // 2. Set up a listener for orders
-          // This query finds all orders that contain at least one item from this artisan
           const ordersQuery = query(collection(db, "orders"), where("artisanIds", "array-contains", user.uid));
           const ordersUnsubscribe = onSnapshot(ordersQuery, (ordersSnapshot) => {
             let revenue = 0;
             let sales = 0;
             ordersSnapshot.forEach(orderDoc => {
               const orderData = orderDoc.data();
-              // Iterate over the items in each order
               orderData.items.forEach(item => {
-                // If the item belongs to this artisan, add it to their totals
                 if (item.artisanId === user.uid) {
                   revenue += item.price * item.quantity;
                   sales += item.quantity;
@@ -55,21 +52,26 @@ export default function ArtisanHubDashboardPage() {
               totalRevenue: revenue,
               totalSales: sales,
             }));
-            setLoadingStats(false); // Mark loading as false after data is fetched
+            setLoadingStats(false); 
+          }, 
+          // THE FIX: Added an error handler for the orders query
+          (error) => {
+            console.error("Error fetching orders:", error);
+            // This is the error that will contain the link you need to click
+            setLoadingStats(false); // Stop loading even if there's an error
           });
 
-          // 3. Return a cleanup function to stop listening when the component unmounts
           return () => {
             productsUnsubscribe();
             ordersUnsubscribe();
           };
 
         } catch (error) {
-          console.error("Error fetching dashboard stats:", error);
+          console.error("Error setting up dashboard stats:", error);
           setLoadingStats(false);
         }
     }
-  }, [user]); // Re-run this effect if the user changes
+  }, [user]);
 
   return (
     <>
@@ -78,7 +80,6 @@ export default function ArtisanHubDashboardPage() {
       </div>
       <p className="text-muted-foreground mb-4">Welcome back, {user?.displayName}!</p>
       
-      {/* Statistics Cards */}
       <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
