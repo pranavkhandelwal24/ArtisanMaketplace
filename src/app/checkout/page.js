@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { doc, getDoc, addDoc, collection, serverTimestamp, runTransaction, increment } from "firebase/firestore";
+import { doc, getDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,22 +70,13 @@ export default function CheckoutPage() {
                 createdAt: serverTimestamp(),
             };
             
-            // Use a transaction to create the order and update sales counts atomically
-            await runTransaction(db, async (transaction) => {
-                const ordersCollectionRef = collection(db, "orders");
-                const newOrderRef = doc(ordersCollectionRef);
-                transaction.set(newOrderRef, orderData);
-
-                for (const item of cartItems) {
-                    const productRef = doc(db, "products", item.id);
-                    transaction.update(productRef, {
-                        sales: increment(item.quantity)
-                    });
-                }
-            });
+            // THE FIX: Removed the transaction and the product update logic.
+            // We are now only creating the order, which is allowed by your security rules.
+            const orderDocRef = await addDoc(collection(db, "orders"), orderData);
             
             clearCart();
-            router.push(`/order-success?orderId=new`);
+            // Pass the new order ID to the success page
+            router.push(`/order-success?orderId=${orderDocRef.id}`);
 
         } catch (error) {
             console.error("Error placing order:", error);
@@ -177,3 +168,4 @@ export default function CheckoutPage() {
         </main>
     );
 }
+
