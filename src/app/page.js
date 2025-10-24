@@ -1,140 +1,72 @@
-"use client";
+import { db } from "@/lib/firebase-admin";
+import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 
-import { useEffect, useState } from 'react';
-import { DollarSign, Package, Users, Loader2 } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from '@/context/AuthContext';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
-
-export default function ArtisanHubDashboardPage() {
-  const { user } = useAuth();
-  const [stats, setStats] = useState({
-    totalRevenue: 0,
-    totalSales: 0,
-    activeProducts: 0,
-  });
-  const [loadingStats, setLoadingStats] = useState(true);
-
-  useEffect(() => {
-    if (user) {
-        setLoadingStats(true);
-        try {
-          const productsQuery = query(collection(db, "products"), where("artisanId", "==", user.uid));
-          const productsUnsubscribe = onSnapshot(productsQuery, (productsSnapshot) => {
-            const activeProductsCount = productsSnapshot.docs.filter(doc => doc.data().isVerified).length;
-            setStats(prevStats => ({
-              ...prevStats,
-              activeProducts: activeProductsCount,
-            }));
-          }, 
-          // THE FIX: Added an error handler for the products query
-          (error) => {
-            console.error("Error fetching products:", error);
-            setLoadingStats(false); // Stop loading even if there's an error
-          });
-
-          const ordersQuery = query(collection(db, "orders"), where("artisanIds", "array-contains", user.uid));
-          const ordersUnsubscribe = onSnapshot(ordersQuery, (ordersSnapshot) => {
-            let revenue = 0;
-            let sales = 0;
-            ordersSnapshot.forEach(orderDoc => {
-              const orderData = orderDoc.data();
-              orderData.items.forEach(item => {
-                if (item.artisanId === user.uid) {
-                  revenue += item.price * item.quantity;
-                  sales += item.quantity;
-                }
-              });
-            });
-            setStats(prevStats => ({
-              ...prevStats,
-              totalRevenue: revenue,
-              totalSales: sales,
-            }));
-            setLoadingStats(false); 
-          }, 
-          // THE FIX: Added an error handler for the orders query
-          (error) => {
-            console.error("Error fetching orders:", error);
-            // This is the error that will contain the link you need to click
-            setLoadingStats(false); // Stop loading even if there's an error
-          });
-
-          return () => {
-            productsUnsubscribe();
-            ordersUnsubscribe();
-          };
-
-        } catch (error) {
-          console.error("Error setting up dashboard stats:", error);
-          setLoadingStats(false);
-        }
-    }
-  }, [user]);
-
-  return (
-    <>
-      <div className="flex items-center">
-        <h1 className="text-lg font-semibold md:text-2xl">Dashboard</h1>
-      </div>
-      <p className="text-muted-foreground mb-4">Welcome back, {user?.displayName}!</p>
-      
-      <div className="grid gap-4 md:grid-cols-2 md:gap-8 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Revenue
-            </CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingStats ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-                <div className="text-2xl font-bold">₹{stats.totalRevenue.toFixed(2)}</div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Based on completed sales
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Total Sales
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-             {loadingStats ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-                <div className="text-2xl font-bold">+{stats.totalSales}</div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Total items sold
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Products</CardTitle>
-            <Package className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            {loadingStats ? (
-                <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-                <div className="text-2xl font-bold">{stats.activeProducts}</div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Products approved and live on the site
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    </>
-  );
+// This server-side function fetches the 8 most recent, verified products to feature on the homepage.
+async function getFeaturedProducts() {
+  try {
+    const productsQuery = db.collection('products')
+      .where('isVerified', '==', true)
+      .orderBy('createdAt', 'desc')
+      .limit(8);
+    
+    const querySnapshot = await productsQuery.get();
+    
+    // Using JSON.parse(JSON.stringify(...)) is a reliable way to convert Firestore data,
+    // including Timestamps, into a plain object that Next.js can easily handle.
+    return JSON.parse(JSON.stringify(querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))));
+  } catch (error) {
+    console.error("Failed to fetch featured products:", error);
+    return [];
+  }
 }
 
+export default async function HomePage() {
+  const products = await getFeaturedProducts();
+
+  return (
+    <main>
+      {/* Hero Section */}
+      <section className="container mx-auto flex flex-col items-center justify-center p-8 text-center">
+        <h1 className="text-4xl font-bold tracking-tight md:text-6xl">The Heart of Craftsmanship</h1>
+        <p className="mt-4 max-w-2xl text-lg text-muted-foreground">
+          Discover unique, handcrafted goods from passionate artisans around the world. Every piece tells a story.
+        </p>
+        <div className="mt-6 flex gap-4">
+           <Button asChild size="lg">
+             <Link href="/products">Explore All Products</Link>
+           </Button>
+        </div>
+      </section>
+
+      {/* Featured Products Section */}
+      <section className="container mx-auto p-4 md:p-8">
+        <h2 className="text-2xl font-semibold mb-6">New Arrivals</h2>
+        {products.length > 0 ? (
+          <div className="grid grid-cols-1 gap-x-6 gap-y-10 sm:grid-cols-2 lg:grid-cols-4 xl:gap-x-8">
+            {products.map((product) => (
+              <Link key={product.id} href={`/product/${product.id}`} className="group">
+                <div className="aspect-h-1 aspect-w-1 w-full overflow-hidden rounded-lg bg-gray-200">
+                  <Image
+                    src={product.imageUrls[0] || "https://placehold.co/400x400"}
+                    alt={product.name}
+                    width={400}
+                    height={400}
+                    className="h-full w-full object-cover object-center transition-opacity group-hover:opacity-75"
+                  />
+                </div>
+                <h3 className="mt-4 text-sm text-gray-700">{product.name}</h3>
+                <p className="mt-1 text-lg font-medium text-gray-900">₹{product.price.toFixed(2)}</p>
+              </Link>
+            ))}
+          </div>
+        ) : (
+           <div className="mt-16 text-center">
+             <p className="text-muted-foreground">No featured products available at the moment. Check back soon!</p>
+           </div>
+        )}
+      </section>
+    </main>
+  );
+}
