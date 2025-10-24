@@ -5,12 +5,11 @@ import Image from 'next/image'
 import useEmblaCarousel from 'embla-carousel-react'
 import { Button } from '@/components/ui/button'
 import { ChevronLeft, ChevronRight, Video } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn } from '@/lib/utils' // 1. THE FIX: Import the 'cn' utility
 
 export function ProductImageCarousel({ media }) {
   const [emblaRef, emblaApi] = useEmblaCarousel()
   const [selectedIndex, setSelectedIndex] = useState(0)
-  const [thumbIndexes, setThumbIndexes] = useState([])
 
   const onThumbClick = useCallback((index) => {
     if (!emblaApi) return
@@ -90,10 +89,15 @@ export function ProductImageCarousel({ media }) {
       <div className="mt-4">
         <div className="grid grid-cols-5 gap-2">
             {media.map((item, index) => (
-                <button onClick={() => onThumbClick(index)} className={cn(
-                    "relative aspect-square rounded-md overflow-hidden transition-opacity",
-                    index === selectedIndex ? 'opacity-100 ring-2 ring-primary' : 'opacity-50 hover:opacity-100'
-                )} key={index}>
+                <button 
+                    onClick={() => onThumbClick(index)} 
+                    // 2. THE FIX: The 'cn' function is now defined
+                    className={cn(
+                        "relative aspect-square rounded-md overflow-hidden transition-opacity",
+                        index === selectedIndex ? 'opacity-100 ring-2 ring-primary' : 'opacity-50 hover:opacity-100'
+                    )} 
+                    key={index}
+                >
                     {item.type === 'video' ? (
                         <div className="absolute inset-0 bg-black flex items-center justify-center">
                             <Video className="h-6 w-6 text-white" />
@@ -113,3 +117,4 @@ export function ProductImageCarousel({ media }) {
     </div>
   )
 }
+
